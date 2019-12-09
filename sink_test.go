@@ -10,13 +10,12 @@ import (
 
 var _ = Describe("Sink", func() {
 	var subject *sink
-
-	var bucket *bfs.InMem
 	var ctx = context.Background()
 
 	BeforeEach(func() {
-		bucket = bfs.NewInMem()
-		subject = newSink(ctx, bucket, new(Options).norm())
+		var err error
+		subject, err = newSink(ctx, new(Options).norm())
+		Expect(err).NotTo(HaveOccurred())
 
 		for i := 0; i < 10; i++ {
 			Expect(subject.Encode("file1.json", &mockType{S: "x", N: 1, F: 2.35})).To(Succeed())
@@ -31,8 +30,9 @@ var _ = Describe("Sink", func() {
 	})
 
 	It("should append/commit", func() {
+		bucket := bfs.NewInMem()
 		Expect(bucket.ObjectSizes()).To(BeEmpty())
-		Expect(subject.Commit()).To(Succeed())
+		Expect(subject.Commit(bucket)).To(Succeed())
 
 		sizes := bucket.ObjectSizes()
 		Expect(sizes).To(HaveLen(2))
@@ -41,6 +41,7 @@ var _ = Describe("Sink", func() {
 	})
 
 	It("should discard", func() {
+		bucket := bfs.NewInMem()
 		Expect(bucket.ObjectSizes()).To(BeEmpty())
 		Expect(subject.Discard()).To(Succeed())
 		Expect(bucket.ObjectSizes()).To(BeEmpty())
