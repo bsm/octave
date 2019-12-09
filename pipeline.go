@@ -192,7 +192,10 @@ func (p *Pipeline) work(ctx context.Context, name string, fn ChannelFunc) error 
 	emt := &emitter{Decoder: dec, name: name}
 
 	// open sink
-	snk := newSink(ctx, p.dst, p.opt)
+	snk, err := newSink(ctx, p.opt)
+	if err != nil {
+		return err
+	}
 	defer snk.Discard()
 
 	// process channel func
@@ -201,7 +204,7 @@ func (p *Pipeline) work(ctx context.Context, name string, fn ChannelFunc) error 
 	}
 
 	// commit sink
-	if err := snk.Commit(); err != nil {
+	if err := snk.Commit(p.dst); err != nil {
 		return err
 	}
 

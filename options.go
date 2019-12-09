@@ -13,6 +13,10 @@ type Options struct {
 	// Default: 4 * number of CPUs
 	Concurrency int
 
+	// A custom temporary directory.
+	// Default: os.TempDir()
+	TempDir string
+
 	// File glob pattern.
 	// Default: "**"
 	Glob string

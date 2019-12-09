@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"github.com/bsm/bfs"
 )
@@ -12,22 +15,28 @@ import (
 var errDiscarded = errors.New("sink is already discarded")
 
 type sink struct {
-	bucket bfs.Bucket
+	dir    string
 	opt    *Options
 	files  map[string]*sinkFile
+	buf    []byte
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-func newSink(ctx context.Context, b bfs.Bucket, o *Options) *sink {
+func newSink(ctx context.Context, o *Options) (*sink, error) {
+	dir, err := ioutil.TempDir(o.TempDir, "octave-")
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	return &sink{
-		bucket: b,
-		files:  make(map[string]*sinkFile),
+		dir:    dir,
 		opt:    o,
+		files:  make(map[string]*sinkFile),
 		ctx:    ctx,
 		cancel: cancel,
-	}
+	}, nil
 }
 
 // Encode appends a message to a file.
@@ -46,16 +55,28 @@ func (s *sink) Encode(name string, msg interface{}) error {
 // Discard discards all stashed messages.
 func (s *sink) Discard() error {
 	s.cancel()
-	return s.Commit()
+	return s.Commit(nil)
 }
 
 // Commit commits all stashed messages.
-func (s *sink) Commit() (err error) {
-	for name, file := range s.files {
+func (s *sink) Commit(bucket bfs.Bucket) (err error) {
+	defer os.RemoveAll(s.dir)
+	defer func() { s.files = make(map[string]*sinkFile) }()
+
+	for _, file := range s.files {
 		if e := file.Close(); e != nil && e != context.Canceled {
-			err = e
+			err = e // close all files!
 		}
-		delete(s.files, name)
+	}
+
+	if bucket == nil || s.ctx.Err() != nil {
+		return
+	}
+
+	for name := range s.files {
+		if err := s.sendFile(bucket, name); err != nil {
+			return err // exit on first error!
+		}
 	}
 	return
 }
@@ -71,7 +92,7 @@ func (s *sink) fetch(name string) (*sinkFile, error) {
 		return nil, errNoCoder
 	}
 
-	wc, err := s.bucket.Create(s.ctx, name, nil)
+	wc, err := os.Create(filepath.Join(s.dir, name))
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +113,30 @@ func (s *sink) fetch(name string) (*sinkFile, error) {
 	file := &sinkFile{Encoder: enc, c: cc, w: wc}
 	s.files[name] = file
 	return file, nil
+}
+
+func (s *sink) sendFile(bucket bfs.Bucket, name string) error {
+	w, err := bucket.Create(s.ctx, name, nil)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	r, err := os.Open(filepath.Join(s.dir, name))
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	if len(s.buf) == 0 {
+		s.buf = make([]byte, 32*1024)
+	}
+
+	if _, err := io.CopyBuffer(w, r, s.buf); err != nil {
+		return err
+	}
+
+	return w.Close()
 }
 
 type sinkFile struct {
