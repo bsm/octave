@@ -92,7 +92,12 @@ func (s *sink) fetch(name string) (*sinkFile, error) {
 		return nil, errNoCoder
 	}
 
-	wc, err := os.Create(filepath.Join(s.dir, name))
+	fname := filepath.Join(s.dir, name)
+	if err := os.MkdirAll(filepath.Dir(fname), 0777); err != nil {
+		return nil, err
+	}
+
+	wc, err := os.Create(fname)
 	if err != nil {
 		return nil, err
 	}
