@@ -86,12 +86,6 @@ func (s *sink) fetch(name string) (*sinkFile, error) {
 		return file, nil
 	}
 
-	compression := s.opt.findCompression(name)
-	coder := s.opt.findCoder(name)
-	if coder == nil {
-		return nil, errNoCoder
-	}
-
 	fname := filepath.Join(s.dir, name)
 	if err := os.MkdirAll(filepath.Dir(fname), 0777); err != nil {
 		return nil, err
@@ -102,13 +96,13 @@ func (s *sink) fetch(name string) (*sinkFile, error) {
 		return nil, err
 	}
 
-	cc, err := compression.NewWriter(wc)
+	cc, err := s.opt.newCompressionWriter(name, wc)
 	if err != nil {
 		_ = wc.Close()
 		return nil, err
 	}
 
-	enc, err := coder.NewEncoder(cc)
+	enc, err := s.opt.newEncoder(name, cc)
 	if err != nil {
 		_ = wc.Close()
 		_ = cc.Close()

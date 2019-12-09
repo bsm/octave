@@ -151,13 +151,6 @@ func (p *Pipeline) run(fn ChannelFunc) error {
 }
 
 func (p *Pipeline) work(ctx context.Context, name string, fn ChannelFunc) error {
-	// detect compression + coder
-	compression := p.opt.findCompression(name)
-	coder := p.opt.findCoder(name)
-	if coder == nil {
-		return errNoCoder
-	}
-
 	// acquire lock handle
 	handle, err := p.acc.Acquire(ctx, name, nil)
 	if err == accord.ErrAcquired || err == accord.ErrDone {
@@ -175,14 +168,14 @@ func (p *Pipeline) work(ctx context.Context, name string, fn ChannelFunc) error 
 	defer rc.Close()
 
 	// open compression
-	cc, err := compression.NewReader(rc)
+	cc, err := p.opt.newCompressionReader(name, rc)
 	if err != nil {
 		return err
 	}
 	defer cc.Close()
 
 	// open decoder
-	dec, err := coder.NewDecoder(cc)
+	dec, err := p.opt.newDecoder(name, cc)
 	if err != nil {
 		return err
 	}
