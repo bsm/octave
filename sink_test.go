@@ -18,7 +18,7 @@ var _ = Describe("Sink", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		for i := 0; i < 10; i++ {
-			Expect(subject.Encode("file1.json", &mockType{S: "x", N: 1, F: 2.35})).To(Succeed())
+			Expect(subject.Encode("sub/dir/file1.json", &mockType{S: "x", N: 1, F: 2.35})).To(Succeed())
 		}
 		for i := 0; i < 10; i++ {
 			Expect(subject.Encode("file2.json.gz", &mockType{S: "y", N: 2, F: 3.72})).To(Succeed())
@@ -36,7 +36,7 @@ var _ = Describe("Sink", func() {
 
 		sizes := bucket.ObjectSizes()
 		Expect(sizes).To(HaveLen(2))
-		Expect(sizes).To(HaveKeyWithValue("file1.json", int64(250)))
+		Expect(sizes).To(HaveKeyWithValue("sub/dir/file1.json", int64(250)))
 		Expect(sizes).To(HaveKeyWithValue("file2.json.gz", BeNumerically("~", 52, 20)))
 	})
 
